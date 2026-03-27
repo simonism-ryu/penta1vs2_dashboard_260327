@@ -1,0 +1,723 @@
+<!DOCTYPE html>
+<html lang="ko" class="theme-light">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>PENTA 렌즈 원가 비교 대시보드</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&display=swap" rel="stylesheet">
+  <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.7/dist/chart.umd.min.js"></script>
+  <script>Chart.defaults.animation = false;</script>
+  <script src="https://cdn.jsdelivr.net/npm/html-to-image@1.11.11/dist/html-to-image.js"></script>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    :root { interpolate-size: allow-keywords; }
+
+    html.theme-dark {
+      --bg: #0A0A0A; --surface: #141414; --surface-hover: #1C1C1C;
+      --border: rgba(255,255,255,0.06);
+      --text: #EDEDED; --text-secondary: #888;
+      --accent: #3b82f6; --accent-secondary: #8b5cf6;
+      --positive: #10b981; --negative: #f43f5e; --warning: #f59e0b;
+      --surface-alt: #1a1a1a;
+      --insight-bg: rgba(59,130,246,0.06);
+      --insight-border: rgba(59,130,246,0.15);
+    }
+    html.theme-light {
+      --bg: #FAFAF9; --surface: #FFFFFF; --surface-hover: #F5F5F4;
+      --border: rgba(0,0,0,0.06);
+      --text: #0f172a; --text-secondary: #64748b;
+      --accent: #2563eb; --accent-secondary: #7c3aed;
+      --positive: #059669; --negative: #e11d48; --warning: #d97706;
+      --surface-alt: #f8fafc;
+      --insight-bg: rgba(37,99,235,0.04);
+      --insight-border: rgba(37,99,235,0.12);
+    }
+
+    body {
+      font-family: 'Noto Sans KR', 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+      background: var(--bg); color: var(--text);
+      line-height: 1.6; -webkit-font-smoothing: antialiased;
+      transition: background 0.3s, color 0.3s;
+    }
+    h1,h2,h3,h4 { color: var(--text); letter-spacing: -0.03em; line-height: 1.2; }
+    h1 { font-size: 2.5rem; font-weight: 700; }
+    h2 { font-size: 1.75rem; font-weight: 600; }
+    h3 { font-size: 1.25rem; font-weight: 600; }
+    p, li, td, th, span, label { color: var(--text); font-weight: 400; }
+    .text-secondary { color: var(--text-secondary); }
+
+    .container { max-width: 1200px; margin: 0 auto; padding: 48px 24px; }
+
+    @media (max-width: 375px) { body { overflow-x: hidden; } }
+
+    /* Cards */
+    .card {
+      background: var(--surface); border: 1px solid var(--border);
+      border-radius: 12px; padding: 28px;
+      transition: box-shadow 0.2s ease;
+    }
+    .card:hover { box-shadow: 0 0 0 1px var(--border), 0 8px 20px rgba(0,0,0,0.06); }
+
+    /* KPI Grid */
+    .kpi-grid {
+      display: grid; gap: 16px;
+      grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+    }
+    .kpi-card { text-align: center; padding: 24px 20px; }
+    .kpi-label { font-size: 0.8rem; color: var(--text-secondary); text-transform: uppercase; letter-spacing: 0.06em; margin-bottom: 6px; font-weight: 500; }
+    .kpi-value { font-size: 2.2rem; font-weight: 700; line-height: 1.1; }
+    .kpi-sub { font-size: 0.85rem; color: var(--text-secondary); margin-top: 6px; }
+    .kpi-value.accent { color: var(--accent); }
+    .kpi-value.negative { color: var(--negative); }
+    .kpi-value.positive { color: var(--positive); }
+
+    /* Section header */
+    .section-header { margin-bottom: 24px; }
+    .section-header h2 { margin-bottom: 6px; }
+    .section-header p { color: var(--text-secondary); font-size: 0.95rem; }
+    .section-tag {
+      display: inline-block; font-size: 0.7rem; font-weight: 600;
+      text-transform: uppercase; letter-spacing: 0.08em;
+      padding: 4px 10px; border-radius: 4px; margin-bottom: 10px;
+    }
+    .tag-photochromic { background: rgba(139,92,246,0.12); color: var(--accent-secondary); }
+    .tag-polarized { background: rgba(59,130,246,0.12); color: var(--accent); }
+
+    /* Comparison layout */
+    .compare-grid { display: grid; gap: 20px; grid-template-columns: 1fr 1fr; }
+    @media (max-width: 768px) { .compare-grid { grid-template-columns: 1fr; } }
+
+    .compare-card { position: relative; overflow: hidden; }
+    .compare-card .model-name { font-size: 1.1rem; font-weight: 600; margin-bottom: 16px; display: flex; align-items: center; gap: 8px; }
+    .compare-card .model-badge {
+      font-size: 0.65rem; font-weight: 600; text-transform: uppercase;
+      padding: 3px 8px; border-radius: 4px; letter-spacing: 0.05em;
+    }
+    .badge-p1 { background: rgba(139,92,246,0.12); color: var(--accent-secondary); }
+    .badge-p2 { background: rgba(59,130,246,0.12); color: var(--accent); }
+    .badge-fo { background: rgba(245,158,11,0.12); color: var(--warning); }
+    .badge-fw { background: rgba(16,185,129,0.12); color: var(--positive); }
+
+    .cost-row {
+      display: flex; justify-content: space-between; align-items: center;
+      padding: 10px 0; border-bottom: 1px solid var(--border);
+      font-size: 0.9rem;
+    }
+    .cost-row:last-child { border-bottom: none; }
+    .cost-row .label { color: var(--text-secondary); }
+    .cost-row .value { font-weight: 600; font-variant-numeric: tabular-nums; }
+    .cost-row.total { font-size: 1rem; }
+    .cost-row.total .value { font-size: 1.15rem; color: var(--accent); }
+
+    /* Insight box */
+    .insight-box {
+      background: var(--insight-bg); border: 1px solid var(--insight-border);
+      border-radius: 10px; padding: 20px 24px; margin-top: 24px;
+      font-size: 0.9rem; line-height: 1.7;
+    }
+    .insight-box .insight-title {
+      font-weight: 600; font-size: 0.85rem; margin-bottom: 8px;
+      display: flex; align-items: center; gap: 6px;
+    }
+    .insight-box .insight-title svg { flex-shrink: 0; }
+    .insight-box.warning {
+      background: rgba(245,158,11,0.06); border-color: rgba(245,158,11,0.15);
+    }
+    .insight-box.warning .insight-title { color: var(--warning); }
+    .insight-box.critical {
+      background: rgba(244,63,94,0.06); border-color: rgba(244,63,94,0.15);
+    }
+    .insight-box.critical .insight-title { color: var(--negative); }
+
+    /* Chart containers */
+    .chart-container {
+      height: 360px; padding: 20px; border-radius: 12px;
+      background: var(--surface); border: 1px solid var(--border);
+    }
+
+    /* Diff badge */
+    .diff-badge {
+      display: inline-flex; align-items: center; gap: 4px;
+      font-size: 0.8rem; font-weight: 600; padding: 3px 10px;
+      border-radius: 20px;
+    }
+    .diff-up { background: rgba(244,63,94,0.1); color: var(--negative); }
+    .diff-down { background: rgba(16,185,129,0.1); color: var(--positive); }
+
+    /* Waterfall bar */
+    .waterfall { margin-top: 16px; }
+    .wf-row { display: flex; align-items: center; gap: 12px; margin-bottom: 10px; font-size: 0.85rem; }
+    .wf-label { width: 80px; text-align: right; color: var(--text-secondary); flex-shrink: 0; }
+    .wf-bar-container { flex: 1; height: 28px; background: var(--surface-alt); border-radius: 6px; position: relative; overflow: hidden; }
+    .wf-bar { height: 100%; border-radius: 6px; display: flex; align-items: center; padding: 0 10px; font-size: 0.75rem; font-weight: 600; color: #fff; min-width: 40px; }
+    .wf-value { width: 80px; text-align: right; font-weight: 600; font-variant-numeric: tabular-nums; flex-shrink: 0; }
+
+    /* Animations */
+    @keyframes fadeInUp { from { opacity: 0; transform: translateY(24px); } to { opacity: 1; transform: translateY(0); } }
+    @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
+    .animate { animation: fadeInUp 0.6s ease-out both; }
+    .animate.delay-1 { animation-delay: 0.1s; }
+    .animate.delay-2 { animation-delay: 0.2s; }
+    .animate.delay-3 { animation-delay: 0.3s; }
+    .animate.delay-4 { animation-delay: 0.4s; }
+    .animate.delay-5 { animation-delay: 0.5s; }
+    .animate.delay-6 { animation-delay: 0.6s; }
+
+    .reveal { opacity: 0; transform: translateY(24px); transition: opacity 0.6s ease, transform 0.6s ease; }
+    .reveal.visible { opacity: 1; transform: translateY(0); }
+
+    @media (prefers-reduced-motion: reduce) {
+      *, *::before, *::after { animation: none !important; transition: none !important; }
+      .reveal { opacity: 1; transform: none; }
+    }
+
+    @media print {
+      body { background: white !important; color: black !important; }
+      .viz-menu { display: none !important; }
+      .reveal { opacity: 1 !important; transform: none !important; }
+      .card { break-inside: avoid; border: 1px solid #ddd; box-shadow: none; }
+      * { print-color-adjust: exact; -webkit-print-color-adjust: exact; }
+    }
+    @page { margin: 0.75in; }
+
+    /* Menu */
+    .viz-menu { position: fixed; top: 16px; right: 16px; z-index: 9999; }
+    .viz-menu-toggle {
+      width: 40px; height: 40px; border-radius: 10px;
+      background: var(--surface); border: 1px solid var(--border);
+      color: var(--text); cursor: pointer; display: flex;
+      align-items: center; justify-content: center;
+      backdrop-filter: blur(12px); transition: all 0.2s;
+    }
+    .viz-menu-toggle:hover { background: var(--surface-hover); }
+    .viz-menu-dropdown {
+      position: absolute; top: 48px; right: 0; min-width: 180px;
+      background: var(--surface); border: 1px solid var(--border);
+      border-radius: 10px; padding: 6px;
+      opacity: 0; visibility: hidden; transform: translateY(-8px);
+      transition: all 0.2s; backdrop-filter: blur(16px);
+    }
+    .viz-menu-dropdown.open { opacity: 1; visibility: visible; transform: translateY(0); }
+    .viz-menu-dropdown button {
+      width: 100%; padding: 8px 12px; border: none; border-radius: 6px;
+      background: transparent; color: var(--text); font-size: 13px;
+      font-family: inherit; cursor: pointer; text-align: left;
+      display: flex; align-items: center; gap: 8px; transition: background 0.15s;
+    }
+    .viz-menu-dropdown button:hover { background: var(--surface-hover); }
+
+    .skip-to-content {
+      position: absolute; top: -40px; left: 6px; background: var(--accent);
+      color: white; padding: 8px 12px; text-decoration: none;
+      border-radius: 4px; opacity: 0; pointer-events: none;
+      transition: all 0.2s; z-index: 10000;
+    }
+    .skip-to-content:focus { top: 6px; opacity: 1; pointer-events: auto; }
+
+    /* Header */
+    .page-header { padding: 60px 0 40px; text-align: center; }
+    .page-header h1 { margin-bottom: 10px; }
+    .page-header .subtitle { color: var(--text-secondary); font-size: 1rem; }
+    .page-header .date { color: var(--text-secondary); font-size: 0.8rem; margin-top: 4px; }
+
+    section + section { margin-top: 56px; }
+
+    /* Tab filter */
+    .tab-bar { display: flex; gap: 8px; margin-bottom: 28px; }
+    .tab-btn {
+      padding: 8px 20px; border: 1px solid var(--border); border-radius: 8px;
+      background: transparent; color: var(--text-secondary); font-size: 0.85rem;
+      font-weight: 500; cursor: pointer; font-family: inherit; transition: all 0.2s;
+    }
+    .tab-btn.active { background: var(--accent); color: #fff; border-color: var(--accent); }
+    .tab-btn:hover:not(.active) { background: var(--surface-hover); color: var(--text); }
+    .tab-content { display: none; }
+    .tab-content.active { display: block; }
+
+    @media (max-width: 768px) {
+      h1 { font-size: 1.8rem; }
+      .kpi-grid { grid-template-columns: 1fr 1fr; }
+      .container { padding: 32px 16px; }
+    }
+    @media (max-width: 375px) {
+      .kpi-grid { grid-template-columns: 1fr; }
+      .kpi-value { font-size: 1.8rem; }
+    }
+  </style>
+</head>
+<body>
+  <a href="#main-content" class="skip-to-content">Skip to content</a>
+
+  <!-- MENU -->
+  <div class="viz-menu">
+    <button class="viz-menu-toggle" onclick="toggleMenu()" aria-label="Menu">
+      <svg width="18" height="18" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round">
+        <line x1="3" y1="5" x2="17" y2="5"/><line x1="3" y1="10" x2="17" y2="10"/><line x1="3" y1="15" x2="17" y2="15"/>
+      </svg>
+    </button>
+    <div class="viz-menu-dropdown" id="vizMenuDropdown">
+      <button onclick="cycleTheme()"><span id="themeIcon">☀️</span><span id="themeLabel">Light</span></button>
+      <button onclick="downloadImage()"><span>📥</span><span>Download PNG</span></button>
+      <button onclick="window.print()"><span>🖨️</span><span>Print / PDF</span></button>
+    </div>
+  </div>
+
+  <main id="main-content" role="main">
+    <div class="container">
+
+      <!-- HEADER -->
+      <header class="page-header animate">
+        <h1>PENTA 렌즈 원가 비교</h1>
+        <p class="subtitle">조광 · 편광 렌즈 4개 모델 원가 구조 분석</p>
+        <p class="date">2026.03.27 기준 확정 데이터</p>
+      </header>
+
+      <!-- KPI SUMMARY -->
+      <section class="animate delay-1">
+        <div class="kpi-grid">
+          <div class="card kpi-card">
+            <div class="kpi-label">조광 PENTA1 원가</div>
+            <div class="kpi-value accent" data-count="33502" data-prefix="₩" data-suffix="">33,502</div>
+            <div class="kpi-sub">KODA 렌즈 · 원가율 40.9%</div>
+          </div>
+          <div class="card kpi-card">
+            <div class="kpi-label">조광 PENTA2 원가</div>
+            <div class="kpi-value negative" data-count="35830" data-prefix="₩" data-suffix="">35,830</div>
+            <div class="kpi-sub">Film On · 원가율 23.9%</div>
+          </div>
+          <div class="card kpi-card">
+            <div class="kpi-label">편광 Film On 원가</div>
+            <div class="kpi-value" data-count="34330" data-prefix="₩" data-suffix="">34,330</div>
+            <div class="kpi-sub">신뢰성 검증 중 · 원가율 22.9%</div>
+          </div>
+          <div class="card kpi-card">
+            <div class="kpi-label">편광 FUWENDA 원가</div>
+            <div class="kpi-value" data-count="36512" data-prefix="₩" data-suffix="">36,512</div>
+            <div class="kpi-sub">대안 렌즈 · +₩2,182</div>
+          </div>
+        </div>
+      </section>
+
+      <!-- TAB FILTER -->
+      <section class="animate delay-2">
+        <div class="tab-bar">
+          <button class="tab-btn active" onclick="switchTab('photochromic')">조광 (Photochromic)</button>
+          <button class="tab-btn" onclick="switchTab('polarized')">편광 (Polarized)</button>
+          <button class="tab-btn" onclick="switchTab('overview')">전체 비교</button>
+        </div>
+
+        <!-- PHOTOCHROMIC TAB -->
+        <div class="tab-content active" id="tab-photochromic">
+          <div class="section-header">
+            <span class="section-tag tag-photochromic">PHOTOCHROMIC</span>
+            <h2>조광 렌즈 원가 비교</h2>
+            <p>PENTA1 (KODA) vs PENTA2 (Film On) — 판매가 ₩82,000 / ₩150,000</p>
+          </div>
+
+          <div class="compare-grid">
+            <!-- PENTA1 KODA -->
+            <div class="card compare-card">
+              <div class="model-name"><span class="model-badge badge-p1">P1</span> PENTA1 — KODA 렌즈</div>
+              <div class="cost-row"><span class="label">렌즈 재료비</span><span class="value">₩8,171</span></div>
+              <div class="cost-row"><span class="label">기타 재료비</span><span class="value">₩7,738</span></div>
+              <div class="cost-row"><span class="label">노무비</span><span class="value">₩8,378</span></div>
+              <div class="cost-row"><span class="label">경비</span><span class="value">₩9,214</span></div>
+              <div class="cost-row total"><span class="label">총 원가</span><span class="value">₩33,502</span></div>
+              <div class="cost-row"><span class="label">판매가 / 원가율</span><span class="value">₩82,000 / 40.9%</span></div>
+            </div>
+
+            <!-- PENTA2 Film On -->
+            <div class="card compare-card">
+              <div class="model-name"><span class="model-badge badge-p2">P2</span> PENTA2 — Film On</div>
+              <div class="cost-row"><span class="label">렌즈 재료비</span><span class="value">₩6,004 <span class="diff-badge diff-down">-₩2,167</span></span></div>
+              <div class="cost-row"><span class="label">기타 재료비</span><span class="value">₩7,699</span></div>
+              <div class="cost-row"><span class="label">노무비</span><span class="value">₩12,173</span></div>
+              <div class="cost-row"><span class="label">경비</span><span class="value">₩9,953</span></div>
+              <div class="cost-row total"><span class="label">총 원가</span><span class="value" style="color:var(--negative)">₩35,830 <span class="diff-badge diff-up">+₩2,328</span></span></div>
+              <div class="cost-row"><span class="label">판매가 / 원가율</span><span class="value">₩150,000 / 23.9%</span></div>
+            </div>
+          </div>
+
+          <!-- Chart: Photochromic stacked bar -->
+          <div style="margin-top: 28px;" role="img" aria-label="조광 렌즈 PENTA1과 PENTA2의 원가 구조 비교 차트">
+            <div class="chart-container" style="height: 320px;">
+              <canvas id="chartPhotochromic"></canvas>
+            </div>
+          </div>
+
+          <!-- Insight -->
+          <div class="insight-box warning">
+            <div class="insight-title">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 9v4m0 4h.01M3.6 20h16.8c1 0 1.5-1.1.8-1.9L12.8 3.6c-.7-1-.8-1-1.5 0L3 18.1c-.8.8-.3 1.9.6 1.9z"/></svg>
+              기대와 다른 결과 — PENTA2가 오히려 원가 상승
+            </div>
+            <p>KODA 렌즈(입고가 ₩8,171)는 증착 및 모든 렌즈 공정을 포함한 가격인 반면, Film On 필름 원가(₩6,004)는 <strong>₩2,167 낮지만</strong> 사출렌즈 직접 사출·하드코팅·합지 등 추가 공정이 필요합니다. 이로 인해 노무비가 +₩3,795, 경비가 +₩739 증가하며 총 원가는 PENTA1 대비 <strong>₩2,328 더 높아지는</strong> 역전 현상이 발생했습니다. 렌즈 재료비 절감(₩2,167)이 추가 공정비를 상쇄하지 못합니다.</p>
+          </div>
+        </div>
+
+        <!-- POLARIZED TAB -->
+        <div class="tab-content" id="tab-polarized">
+          <div class="section-header">
+            <span class="section-tag tag-polarized">POLARIZED</span>
+            <h2>편광 렌즈 원가 비교</h2>
+            <p>Film On vs FUWENDA — 판매가 ₩150,000 기준</p>
+          </div>
+
+          <div class="compare-grid">
+            <!-- Film On Polarized -->
+            <div class="card compare-card">
+              <div class="model-name"><span class="model-badge badge-fo">FO</span> Film On 편광</div>
+              <div class="cost-row"><span class="label">렌즈 재료비</span><span class="value">₩4,504</span></div>
+              <div class="cost-row"><span class="label">기타 재료비</span><span class="value">₩7,699</span></div>
+              <div class="cost-row"><span class="label">노무비</span><span class="value">₩12,173</span></div>
+              <div class="cost-row"><span class="label">경비</span><span class="value">₩9,953</span></div>
+              <div class="cost-row total"><span class="label">총 원가</span><span class="value">₩34,330</span></div>
+              <div class="cost-row"><span class="label">원가율</span><span class="value">22.9%</span></div>
+            </div>
+
+            <!-- FUWENDA -->
+            <div class="card compare-card">
+              <div class="model-name"><span class="model-badge badge-fw">FW</span> FUWENDA 편광</div>
+              <div class="cost-row"><span class="label">렌즈 재료비</span><span class="value">₩11,220 <span class="diff-badge diff-up">+₩6,716</span></span></div>
+              <div class="cost-row"><span class="label">기타 재료비</span><span class="value">₩7,699</span></div>
+              <div class="cost-row"><span class="label">노무비</span><span class="value">₩8,378</span></div>
+              <div class="cost-row"><span class="label">경비</span><span class="value">₩9,214</span></div>
+              <div class="cost-row total"><span class="label">총 원가</span><span class="value">₩36,512 <span class="diff-badge diff-up">+₩2,182</span></span></div>
+              <div class="cost-row"><span class="label">원가율</span><span class="value">24.3%</span></div>
+            </div>
+          </div>
+
+          <!-- Chart: Polarized stacked bar -->
+          <div style="margin-top: 28px;" role="img" aria-label="편광 렌즈 Film On과 FUWENDA 원가 구조 비교 차트">
+            <div class="chart-container" style="height: 320px;">
+              <canvas id="chartPolarized"></canvas>
+            </div>
+          </div>
+
+          <!-- Insight -->
+          <div class="insight-box critical">
+            <div class="insight-title">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><path d="M12 8v4m0 4h.01"/></svg>
+              긴급 의사결정 — 일요일 신뢰성 시험 결과가 관건
+            </div>
+            <p>Film On 편광의 신뢰성에 문제가 있어 추가 공정이 필요할 수 있으며, 이 경우 노무비·경비가 더 증가합니다. SS시즌 생산 일정상 더 이상 지연이 불가한 상황에서, <strong>금주 일요일 신뢰성 시험이 다시 FAIL</strong>이면 ₩2,182 원가가 높더라도 <strong>FUWENDA 렌즈로 즉시 발주</strong>하는 것이 합리적 판단입니다. FUWENDA는 $7.5 수입 단가(₩11,220)로 렌즈 재료비는 높지만, 자체 공정 부담이 없어 총 원가 차이는 ₩2,182에 그칩니다.</p>
+          </div>
+        </div>
+
+        <!-- OVERVIEW TAB -->
+        <div class="tab-content" id="tab-overview">
+          <div class="section-header">
+            <h2>전체 모델 원가 비교</h2>
+            <p>4개 모델의 원가 구조를 한눈에 비교합니다</p>
+          </div>
+
+          <div role="img" aria-label="4개 모델 전체 원가 비교 차트">
+            <div class="chart-container" style="height: 400px;">
+              <canvas id="chartOverview"></canvas>
+            </div>
+          </div>
+
+          <div style="margin-top: 28px;" role="img" aria-label="4개 모델 원가율 비교 도넛 차트">
+            <div class="compare-grid">
+              <div class="chart-container" style="height: 300px;">
+                <canvas id="chartCostRate"></canvas>
+              </div>
+              <div class="card" style="display:flex;flex-direction:column;justify-content:center;gap:16px;">
+                <h3 style="margin-bottom:8px;">핵심 요약</h3>
+                <div style="font-size:0.9rem;line-height:1.8;">
+                  <p><strong>조광:</strong> PENTA2(Film On)가 PENTA1(KODA)보다 원가 ₩2,328 높음. 렌즈비 절감(₩2,167)이 노무비 증가(₩3,795)를 상쇄하지 못함.</p>
+                  <p style="margin-top:12px;"><strong>편광:</strong> FUWENDA가 Film On 대비 ₩2,182 높지만, Film On의 신뢰성 리스크를 감안하면 수용 가능한 수준. 일요일 시험 결과에 따라 빠른 의사결정 필요.</p>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+    </div>
+  </main>
+
+  <script>
+    // === Menu ===
+    function toggleMenu() {
+      var dropdown = document.getElementById('vizMenuDropdown');
+      if (dropdown) dropdown.classList.toggle('open');
+    }
+    document.addEventListener('click', function(e) {
+      if (!e.target.closest('.viz-menu')) {
+        var dropdown = document.getElementById('vizMenuDropdown');
+        if (dropdown) dropdown.classList.remove('open');
+      }
+    });
+    document.addEventListener('keydown', function(e) {
+      if (e.key === 'Escape') {
+        var dropdown = document.getElementById('vizMenuDropdown');
+        if (dropdown) dropdown.classList.remove('open');
+      }
+    });
+
+    // === Theme ===
+    var savedTheme = localStorage.getItem('viz-theme');
+    var currentTheme = savedTheme || (window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light');
+    function applyTheme(t) {
+      document.documentElement.className = 'theme-' + t;
+      document.getElementById('themeIcon').textContent = t === 'dark' ? '🌙' : '☀️';
+      document.getElementById('themeLabel').textContent = t === 'dark' ? 'Dark' : 'Light';
+      localStorage.setItem('viz-theme', t);
+      currentTheme = t;
+      if (typeof onThemeChange === 'function') onThemeChange();
+    }
+    function cycleTheme() { applyTheme(currentTheme === 'dark' ? 'light' : 'dark'); }
+    applyTheme(currentTheme);
+
+    // === Scroll Reveal ===
+    document.querySelectorAll('[data-reveal]').forEach(function(el) { el.classList.add('reveal'); });
+    var revealObserver = new IntersectionObserver(function(entries) {
+      entries.forEach(function(e) { if (e.isIntersecting) { e.target.classList.add('visible'); revealObserver.unobserve(e.target); } });
+    }, { threshold: 0.15 });
+    document.querySelectorAll('.reveal').forEach(function(el) { revealObserver.observe(el); });
+
+    // === Number Counter ===
+    function animateCounters() {
+      document.querySelectorAll('[data-count]').forEach(function(el) {
+        if (el.dataset.counted) return;
+        el.dataset.counted = '1';
+        var target = parseFloat(el.dataset.count);
+        var prefix = el.dataset.prefix || '';
+        var suffix = el.dataset.suffix || '';
+        var start = performance.now();
+        var duration = 1200;
+        (function tick(now) {
+          var p = Math.min((now - start) / duration, 1);
+          var eased = 1 - Math.pow(1 - p, 3);
+          el.textContent = prefix + Math.round(target * eased).toLocaleString() + suffix;
+          if (p < 1) requestAnimationFrame(tick);
+        })(start);
+      });
+    }
+    var counterEl = document.querySelector('[data-count]');
+    if (counterEl) {
+      var cObs = new IntersectionObserver(function(entries) {
+        entries.forEach(function(e) { if (e.isIntersecting) { animateCounters(); cObs.disconnect(); } });
+      }, { threshold: 0.3 });
+      cObs.observe(counterEl);
+    }
+
+    // === Download PNG ===
+    async function downloadImage() {
+      var menu = document.querySelector('.viz-menu');
+      menu.style.display = 'none';
+      try {
+        var url = await htmlToImage.toPng(document.body, { quality: 1, pixelRatio: 2, filter: function(n) { return !n.classList || !n.classList.contains('viz-menu'); } });
+        var a = document.createElement('a'); a.href = url;
+        a.download = 'penta-lens-cost-comparison.png'; a.click();
+      } catch(e) { console.error('Download failed:', e); }
+      menu.style.display = '';
+    }
+
+    // === Tab System ===
+    function switchTab(tabId) {
+      document.querySelectorAll('.tab-btn').forEach(function(btn) { btn.classList.remove('active'); });
+      document.querySelectorAll('.tab-content').forEach(function(tc) { tc.classList.remove('active'); });
+      event.target.classList.add('active');
+      document.getElementById('tab-' + tabId).classList.add('active');
+      // Rebuild charts for visible tab
+      chartsBuilt = false;
+      setTimeout(buildCharts, 50);
+    }
+
+    // === Charts ===
+    var chartsBuilt = false;
+
+    function resetCanvas(id) {
+      var old = document.getElementById(id);
+      if (!old) return null;
+      var parent = old.parentNode;
+      var canvas = document.createElement('canvas');
+      canvas.id = id;
+      canvas.setAttribute('role', 'img');
+      canvas.setAttribute('aria-label', old.getAttribute('aria-label') || 'Chart');
+      parent.replaceChild(canvas, old);
+      return canvas;
+    }
+
+    function getColors() {
+      var isDark = document.documentElement.classList.contains('theme-dark');
+      return {
+        text: isDark ? '#EDEDED' : '#0f172a',
+        textSec: isDark ? '#888' : '#64748b',
+        grid: isDark ? 'rgba(255,255,255,0.04)' : 'rgba(0,0,0,0.06)',
+        lens: isDark ? 'rgba(139,92,246,0.85)' : 'rgba(139,92,246,0.75)',
+        material: isDark ? 'rgba(59,130,246,0.85)' : 'rgba(59,130,246,0.7)',
+        labor: isDark ? 'rgba(245,158,11,0.85)' : 'rgba(245,158,11,0.7)',
+        expense: isDark ? 'rgba(244,63,94,0.75)' : 'rgba(244,63,94,0.6)',
+        accent: isDark ? '#3b82f6' : '#2563eb',
+        accentSec: isDark ? '#8b5cf6' : '#7c3aed',
+        positive: isDark ? '#10b981' : '#059669',
+        negative: isDark ? '#f43f5e' : '#e11d48',
+        warning: isDark ? '#f59e0b' : '#d97706'
+      };
+    }
+
+    function buildCharts() {
+      if (typeof Chart === 'undefined') return;
+      var c = getColors();
+      var fontFamily = "'Noto Sans KR', 'Inter', sans-serif";
+
+      var defaultScale = {
+        ticks: { color: c.textSec, font: { family: fontFamily, size: 12 } },
+        grid: { color: c.grid }
+      };
+
+      // --- Photochromic Stacked Bar ---
+      var ctx1 = resetCanvas('chartPhotochromic');
+      if (ctx1) {
+        new Chart(ctx1, {
+          type: 'bar',
+          data: {
+            labels: ['PENTA1 (KODA)', 'PENTA2 (Film On)'],
+            datasets: [
+              { label: '렌즈 재료비', data: [8171, 6004], backgroundColor: c.lens, borderRadius: 2 },
+              { label: '기타 재료비', data: [7738, 7699], backgroundColor: c.material, borderRadius: 2 },
+              { label: '노무비', data: [8378, 12173], backgroundColor: c.labor, borderRadius: 2 },
+              { label: '경비', data: [9214, 9953], backgroundColor: c.expense, borderRadius: 2 }
+            ]
+          },
+          options: {
+            responsive: true, maintainAspectRatio: false,
+            plugins: {
+              tooltip: { enabled: true, mode: 'index', intersect: false, padding: 12, cornerRadius: 8,
+                titleFont: { family: fontFamily, size: 13 }, bodyFont: { family: fontFamily, size: 12 },
+                callbacks: { label: function(ctx) { return ctx.dataset.label + ': ₩' + ctx.parsed.y.toLocaleString(); } }
+              },
+              legend: { position: 'bottom', labels: { color: c.textSec, font: { family: fontFamily, size: 12 }, padding: 16, usePointStyle: true, pointStyle: 'rectRounded' } }
+            },
+            scales: {
+              x: { stacked: true, ticks: { color: c.textSec, font: { family: fontFamily, size: 13, weight: 500 } }, grid: { display: false } },
+              y: { stacked: true, ...defaultScale, ticks: { ...defaultScale.ticks, callback: function(v) { return '₩' + (v/1000).toFixed(0) + 'k'; } } }
+            },
+            layout: { padding: { top: 10, bottom: 10 } }
+          }
+        });
+      }
+
+      // --- Polarized Stacked Bar ---
+      var ctx2 = resetCanvas('chartPolarized');
+      if (ctx2) {
+        new Chart(ctx2, {
+          type: 'bar',
+          data: {
+            labels: ['Film On 편광', 'FUWENDA 편광'],
+            datasets: [
+              { label: '렌즈 재료비', data: [4504, 11220], backgroundColor: c.lens, borderRadius: 2 },
+              { label: '기타 재료비', data: [7699, 7699], backgroundColor: c.material, borderRadius: 2 },
+              { label: '노무비', data: [12173, 8378], backgroundColor: c.labor, borderRadius: 2 },
+              { label: '경비', data: [9953, 9214], backgroundColor: c.expense, borderRadius: 2 }
+            ]
+          },
+          options: {
+            responsive: true, maintainAspectRatio: false,
+            plugins: {
+              tooltip: { enabled: true, mode: 'index', intersect: false, padding: 12, cornerRadius: 8,
+                titleFont: { family: fontFamily, size: 13 }, bodyFont: { family: fontFamily, size: 12 },
+                callbacks: { label: function(ctx) { return ctx.dataset.label + ': ₩' + ctx.parsed.y.toLocaleString(); } }
+              },
+              legend: { position: 'bottom', labels: { color: c.textSec, font: { family: fontFamily, size: 12 }, padding: 16, usePointStyle: true, pointStyle: 'rectRounded' } }
+            },
+            scales: {
+              x: { stacked: true, ticks: { color: c.textSec, font: { family: fontFamily, size: 13, weight: 500 } }, grid: { display: false } },
+              y: { stacked: true, ...defaultScale, ticks: { ...defaultScale.ticks, callback: function(v) { return '₩' + (v/1000).toFixed(0) + 'k'; } } }
+            },
+            layout: { padding: { top: 10, bottom: 10 } }
+          }
+        });
+      }
+
+      // --- Overview Grouped Bar ---
+      var ctx3 = resetCanvas('chartOverview');
+      if (ctx3) {
+        new Chart(ctx3, {
+          type: 'bar',
+          data: {
+            labels: ['조광 PENTA1\n(KODA)', '조광 PENTA2\n(Film On)', '편광\nFilm On', '편광\nFUWENDA'],
+            datasets: [
+              { label: '렌즈 재료비', data: [8171, 6004, 4504, 11220], backgroundColor: c.lens, borderRadius: 2 },
+              { label: '기타 재료비', data: [7738, 7699, 7699, 7699], backgroundColor: c.material, borderRadius: 2 },
+              { label: '노무비', data: [8378, 12173, 12173, 8378], backgroundColor: c.labor, borderRadius: 2 },
+              { label: '경비', data: [9214, 9953, 9953, 9214], backgroundColor: c.expense, borderRadius: 2 }
+            ]
+          },
+          options: {
+            responsive: true, maintainAspectRatio: false,
+            plugins: {
+              tooltip: { enabled: true, mode: 'index', intersect: false, padding: 12, cornerRadius: 8,
+                titleFont: { family: fontFamily, size: 13 }, bodyFont: { family: fontFamily, size: 12 },
+                callbacks: {
+                  label: function(ctx) { return ctx.dataset.label + ': ₩' + ctx.parsed.y.toLocaleString(); },
+                  footer: function(items) {
+                    var total = items.reduce(function(s, i) { return s + i.parsed.y; }, 0);
+                    return '합계: ₩' + total.toLocaleString();
+                  }
+                }
+              },
+              legend: { position: 'bottom', labels: { color: c.textSec, font: { family: fontFamily, size: 12 }, padding: 16, usePointStyle: true, pointStyle: 'rectRounded' } }
+            },
+            scales: {
+              x: { stacked: true, ticks: { color: c.textSec, font: { family: fontFamily, size: 11, weight: 500 }, maxRotation: 0 }, grid: { display: false } },
+              y: { stacked: true, ...defaultScale, ticks: { ...defaultScale.ticks, callback: function(v) { return '₩' + (v/1000).toFixed(0) + 'k'; } } }
+            },
+            layout: { padding: { top: 10, bottom: 10 } }
+          }
+        });
+      }
+
+      // --- Cost Rate Horizontal Bar ---
+      var ctx4 = resetCanvas('chartCostRate');
+      if (ctx4) {
+        new Chart(ctx4, {
+          type: 'bar',
+          data: {
+            labels: ['조광 P1', '조광 P2', '편광 FO', '편광 FW'],
+            datasets: [{
+              label: '원가율 (%)',
+              data: [40.9, 23.9, 22.9, 24.3],
+              backgroundColor: [c.accentSec, c.accent, c.warning, c.positive],
+              borderRadius: 4,
+              barThickness: 32
+            }]
+          },
+          options: {
+            indexAxis: 'y',
+            responsive: true, maintainAspectRatio: false,
+            plugins: {
+              tooltip: { enabled: true, padding: 12, cornerRadius: 8,
+                titleFont: { family: fontFamily, size: 13 }, bodyFont: { family: fontFamily, size: 12 },
+                callbacks: { label: function(ctx) { return '원가율: ' + ctx.parsed.x + '%'; } }
+              },
+              legend: { display: false }
+            },
+            scales: {
+              x: { ...defaultScale, max: 50, ticks: { ...defaultScale.ticks, callback: function(v) { return v + '%'; } } },
+              y: { ticks: { color: c.textSec, font: { family: fontFamily, size: 13, weight: 500 } }, grid: { display: false } }
+            },
+            layout: { padding: { top: 10, right: 20, bottom: 10 } }
+          }
+        });
+      }
+
+      chartsBuilt = true;
+    }
+
+    function onThemeChange() {
+      chartsBuilt = false;
+      setTimeout(buildCharts, 100);
+    }
+
+    window.addEventListener('load', function() {
+      setTimeout(buildCharts, 100);
+    });
+  </script>
+</body>
+</html>
